@@ -1,25 +1,45 @@
+
+
 const axios = require("axios");
-const wikiCache = new Map();
 const API_DELAY_MS = 200;
-async function fetchWikiDescription(cityName) {
-  if (wikiCache.has(cityName)) {
-    return wikiCache.get(cityName);
+
+let wikiCache = [];
+
+async function findWikipediaTitle(cityName) {
+  try {
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
+      cityName
+    )}&format=json`;
+    const { data } = await axios.get(searchUrl);
+    return data?.query?.search?.[0]?.title ?? null;
+  } catch (error) {
+    console.error(`Search API failed for ${cityName}:`, error.message);
+    return null;
   }
+}
+
+async function fetchWikiDescription(cityName) {
+  const cached = wikiCache.find(([name]) => name === cityName);
+  if (cached) return cached[1];
 
   try {
-    const response = await axios.get(
-      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
-        cityName
-      )}`
-    );
-    const description = response.data.extract || "No description available";
+    const bestTitle = await findWikipediaTitle(cityName);
+    if (!bestTitle) {
+      wikiCache = [...wikiCache, [cityName, "No description available"]];
+      return "No description available";
+    }
 
-    // Store in cache
-    wikiCache.set(cityName, description);
+    const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
+      bestTitle
+    )}`;
+    const { data } = await axios.get(summaryUrl);
+    const description = data.extract || "No description available";
+
+    wikiCache = [...wikiCache, [cityName, description]];
     return description;
   } catch (error) {
     if (error.response?.status === 404) {
-      wikiCache.set(cityName, "No description available");
+      wikiCache = [...wikiCache, [cityName, "No description available"]];
       return "No description available";
     }
     throw new Error(
@@ -29,20 +49,13 @@ async function fetchWikiDescription(cityName) {
 }
 
 async function enrichWithWikiDescriptions(cities) {
-  const enrichedCities = [];
-
-  for (const city of cities) {
-    // Introduce delay to respect rate limits
-    await new Promise((resolve) => setTimeout(resolve, API_DELAY_MS));
-
-    const description = await fetchWikiDescription(city.name);
-    enrichedCities.push({
-      ...city,
-      description,
-    });
-  }
-
-  return enrichedCities;
+  return Promise.all(
+    cities.map(async (city) => {
+      await new Promise((resolve) => setTimeout(resolve, API_DELAY_MS));
+      const description = await fetchWikiDescription(city.name);
+      return { ...city, description };
+    })
+  );
 }
 
 module.exports = { enrichWithWikiDescriptions };

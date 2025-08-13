@@ -1,11 +1,13 @@
 // utils/cityFilter.js
 
 function normalizeCityName(name) {
-  return name
-    .toLowerCase()
-    .replace(/\(.*?\)/g, "")
-    .replace(/[^a-ząćęłńóśźż\- ]/gi, "")
-    .trim();
+  return (
+    name
+      .toLowerCase()
+      .replace(/\(.*?\)/g, "")
+      // .replace(/[^a-ząćęłńóśźż\- ]/gi, "")
+      .trim()
+  );
 }
 
 function isValidCityName(name) {
@@ -24,7 +26,7 @@ function isValidCityName(name) {
 
   if (/\d/.test(name)) return false;
 
-  if (invalidKeywords.some((kw) => name.includes(kw))) return false;
+  if (invalidKeywords.some((keyword) => name.includes(keyword))) return false;
 
   if (name.length < 2) return false;
 
@@ -39,13 +41,9 @@ function normalizeAndFilterCities(results) {
     }))
     .filter((entry) => isValidCityName(entry.name));
 
-  const uniqueCities = Object.values(
-    normalized.reduce((acc, entry) => {
-      if (!acc[entry.name] || acc[entry.name].pollution < entry.pollution) {
-        acc[entry.name] = entry;
-      }
-      return acc;
-    }, {})
+  const uniqueCities = normalized.filter(
+    (item, index, arr) =>
+      index === arr.findIndex((obj) => obj.name === item.name)
   );
 
   return uniqueCities;

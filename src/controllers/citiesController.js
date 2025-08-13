@@ -1,11 +1,18 @@
 const pollutionService = require("../services/pollutionService");
 
-exports.getCities = async (req, res) => {
+const getCities = async (req, res) => {
   try {
-    const data = await pollutionService.fetchPollutionData("PL", 1, 50);
+    const { country = "DE", page, limit } = req.query;
+    const data = await pollutionService.fetchPollutionData(
+      country,
+      Number(page),
+      Number(limit)
+    );
     res.json(data);
   } catch (error) {
     console.error(error.message);
-    res.status(500).json({ error: error });
+    res.status(500).json({ error: error.message });
   }
 };
+
+module.exports = { getCities };
