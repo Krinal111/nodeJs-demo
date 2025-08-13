@@ -1,61 +1,72 @@
-
-
 const axios = require("axios");
 const API_DELAY_MS = 200;
+const NO_DESC = "No description available";
 
-let wikiCache = [];
+const wikiCache = new Map();
 
-async function findWikipediaTitle(cityName) {
+const findWikipediaTitle = async (city) => {
   try {
-    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
-      cityName
-    )}&format=json`;
-    const { data } = await axios.get(searchUrl);
+    const { data } = await axios.get(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
+        city
+      )}&format=json`
+    );
     return data?.query?.search?.[0]?.title ?? null;
-  } catch (error) {
-    console.error(`Search API failed for ${cityName}:`, error.message);
+  } catch (err) {
+    console.error(`Search API failed for ${city}:`, err.message);
     return null;
   }
-}
+};
 
-async function fetchWikiDescription(cityName) {
-  const cached = wikiCache.find(([name]) => name === cityName);
-  if (cached) return cached[1];
+const fetchWikiData = async (city) => {
+  if (wikiCache.has(city)) return wikiCache.get(city);
 
   try {
-    const bestTitle = await findWikipediaTitle(cityName);
-    if (!bestTitle) {
-      wikiCache = [...wikiCache, [cityName, "No description available"]];
-      return "No description available";
-    }
+    const title = await findWikipediaTitle(city);
+    if (!title)
+      return wikiCache
+        .set(city, { title: null, description: NO_DESC })
+        .get(city);
 
-    const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
-      bestTitle
-    )}`;
-    const { data } = await axios.get(summaryUrl);
-    const description = data.extract || "No description available";
-
-    wikiCache = [...wikiCache, [cityName, description]];
-    return description;
-  } catch (error) {
-    if (error.response?.status === 404) {
-      wikiCache = [...wikiCache, [cityName, "No description available"]];
-      return "No description available";
-    }
-    throw new Error(
-      `Failed to fetch description for ${cityName}: ${error.message}`
+    const { data } = await axios.get(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
+        title
+      )}`
     );
-  }
-}
 
-async function enrichWithWikiDescriptions(cities) {
-  return Promise.all(
+    return wikiCache
+      .set(city, { title, description: data.extract || NO_DESC })
+      .get(city);
+  } catch (err) {
+    if (err.response?.status === 404) {
+      return wikiCache
+        .set(city, { title: null, description: NO_DESC })
+        .get(city);
+    }
+    throw new Error(`Failed to fetch description for ${city}: ${err.message}`);
+  }
+};
+
+const enrichWithWikiDescriptions = async (cities) => {
+  const enriched = await Promise.all(
     cities.map(async (city) => {
-      await new Promise((resolve) => setTimeout(resolve, API_DELAY_MS));
-      const description = await fetchWikiDescription(city.name);
-      return { ...city, description };
+      await new Promise((res) => setTimeout(res, API_DELAY_MS));
+      const wikiData = await fetchWikiData(city.name);
+      return {
+        ...city,
+        description: wikiData.description,
+      };
     })
   );
-}
+
+  // Deduplicate by wikiTitle (case-insensitive)
+  const seen = new Set();
+  return enriched.filter((c) => {
+    const key = (c.wikiTitle || c.name).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 module.exports = { enrichWithWikiDescriptions };

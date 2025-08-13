@@ -41,12 +41,7 @@ function normalizeAndFilterCities(results) {
     }))
     .filter((entry) => isValidCityName(entry.name));
 
-  const uniqueCities = normalized.filter(
-    (item, index, arr) =>
-      index === arr.findIndex((obj) => obj.name === item.name)
-  );
-
-  return uniqueCities;
+  return normalized;
 }
 
 module.exports = { normalizeAndFilterCities };

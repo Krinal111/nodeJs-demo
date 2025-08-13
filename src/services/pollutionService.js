@@ -1,13 +1,6 @@
-const axios = require("axios");
+const axiosInstance = require("../api/axiosInstance");
 const { normalizeAndFilterCities } = require("../utils/cityFilter");
 const { enrichWithWikiDescriptions } = require("./wikiService");
-
-const client = axios.create({
-  baseURL: process.env.POLLUTION_BASE_URL,
-  headers: {
-    Authorization: `Bearer ${process.env.POLLUTION_TOKEN}`,
-  },
-});
 
 async function fetchPollutionData(country, page = 1, limit = 50) {
   if (!country) {
@@ -16,7 +9,7 @@ async function fetchPollutionData(country, page = 1, limit = 50) {
 
   try {
     // Fetch pollution data
-    const res = await client.get("/pollution", {
+    const res = await axiosInstance.get("/pollution", {
       params: {
         country,
         page,
